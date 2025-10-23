@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Add Site</title>
+  <link rel="stylesheet" href="assets/css/dashboard.css">
+  <style>
+    .site-container {
+      background: #fff;
+      padding: 2rem;
+      max-width: 500px;
+      margin: 50px auto;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+    }
+    h2 { text-align: center; color: #1f2937; margin-bottom: 1.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; margin-bottom: 0.4rem; font-weight: 600; }
+    input { width: 100%; padding: 0.6rem; border-radius: 6px; border: 1px solid #ccc; font-size: 0.95rem; }
+    button { width: 100%; padding: 0.75rem; border: none; border-radius: 6px; background: #1f2937; color: white; font-size: 1rem; cursor: pointer; transition: background 0.3s ease; }
+    button:hover { background: #111827; }
+    .message { margin-top: 1rem; font-size: 0.9rem; text-align: center; }
+    .error { color: red; }
+    .success { color: green; }
+    .back-link { display: block; margin-top: 1rem; text-align: center; text-decoration: none; color: #1f2937; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
+    table th, table td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+    table th { background: #f3f4f6; }
+  </style>
+</head>
+<body>
+  <div class="site-container">
+    <h2>Add New Site</h2>
+    <form id="siteForm">
+      <div class="form-group">
+        <label for="siteName">Site Name</label>
+        <input type="text" id="siteName" placeholder="Enter site name" required>
+      </div>
+      <button type="submit">Add Site</button>
+      <div class="message" id="message"></div>
+    </form>
+    <a href="admin.html" class="back-link">⬅ Back to Dashboard</a>
+
+    <h3>Existing Sites</h3>
+    <table id="sitesTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Site Name</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const token = localStorage.getItem("token");
+    const messageDiv = document.getElementById("message");
+    const siteForm = document.getElementById("siteForm");
+    const siteNameInput = document.getElementById("siteName");
+    const sitesTableBody = document.querySelector("#sitesTable tbody");
+
+    // Redirect if not admin
+    if (localStorage.getItem("role") !== "admin") {
+      alert("Unauthorized access");
+      window.location.href = "login.html";
+    }
+
+    // Load existing sites
+    async function loadSites() {
+      try {
+        const res = await fetch("/api/sites", {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+        const sites = await res.json();
+        sitesTableBody.innerHTML = "";
+        sites.forEach(site => {
+          const row = document.createElement("tr");
+          row.innerHTML = `<td>${site.id}</td><td>${site.name}</td>`;
+          sitesTableBody.appendChild(row);
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // Add site
+    siteForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = siteNameInput.value.trim();
+      if (!name) return;
+
+      try {
+        const res = await fetch("/api/sites", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          messageDiv.textContent = data.msg || "Failed to add site";
+          messageDiv.className = "message error";
+        } else {
+          messageDiv.textContent = "Site added successfully!";
+          messageDiv.className = "message success";
+          siteNameInput.value = "";
+          loadSites();
+        }
+      } catch (err) {
+        messageDiv.textContent = "Server error";
+        messageDiv.className = "message error";
+      }
+    });
+
+    loadSites();
+  </script>
+</body>
+</html>
+

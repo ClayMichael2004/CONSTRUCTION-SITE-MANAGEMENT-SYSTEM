@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Reports - Admin</title>
+  <link rel="stylesheet" href="assets/css/dashboard.css">
+  <style>
+    /* small extra styling for the reports layout */
+    .reports-wrap { display:flex; gap:20px; padding:24px; max-width:1200px; margin:0 auto; }
+    .reports-sidebar { width:220px; background:#fff; border-radius:10px; padding:12px; box-shadow:0 6px 20px rgba(0,0,0,0.06); }
+    .reports-sidebar button { width:100%; margin-bottom:8px; padding:10px; border-radius:8px; border:1px solid #e6e6e6; background:#f9fafb; cursor:pointer; text-align:left; }
+    .reports-sidebar button.active { background:#00a86b; color:white; border-color:#00a86b; }
+    .reports-main { flex:1; }
+    .report-card { background:#fff; padding:16px; border-radius:10px; box-shadow:0 6px 20px rgba(0,0,0,0.06); margin-bottom:16px; display:none; }
+    .report-card.active { display:block; }
+    .filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+    .filters label { font-size:0.9rem; margin-right:4px; color:#333; }
+    .filters select, .filters input { padding:8px; border-radius:6px; border:1px solid #ddd; }
+    .no-data { padding:20px; text-align:center; color:#666; }
+  </style>
+</head>
+<body>
+  <header style="background:#1f2937;color:#fff;padding:12px 24px;">
+    <h1 style="margin:0">Reports</h1>
+    <button style="float:right;margin-top:-36px" onclick="logout()">Logout</button>
+  </header>
+
+  <div class="reports-wrap">
+    <aside class="reports-sidebar">
+      <button id="btnAttendance" class="active">Attendance</button>
+      <button id="btnPayments">Payments</button>
+      <button id="btnWorkers">Registered Workers</button>
+      <button id="btnInventory">Inventory</button>
+    </aside>
+
+    <main class="reports-main">
+      <!-- Attendance -->
+      <section id="cardAttendance" class="report-card active">
+        <h3>Attendance Report</h3>
+        <div class="filters">
+          <label>Site:</label><select id="attendanceSite"><option value="">All</option></select>
+          <label>From:</label><input type="date" id="attendanceFrom">
+          <label>To:</label><input type="date" id="attendanceTo">
+          <label>Status:</label> <select id="attendanceStatus"><option value="">All</option> <option value="Present">Present</option> <option value="Absent">Absent</option> </select>
+          <button onclick="loadAttendance()">Filter</button>
+        </div>
+        <table id="attendanceTable" style="width:100%;border-collapse:collapse"></table>
+        <div id="attendanceEmpty" class="no-data" style="display:none">No records</div>
+      </section>
+
+      <!-- Payments -->
+      <section id="cardPayments" class="report-card">
+        <h3>Payments Report</h3>
+        <div class="filters">
+          <label>Site:</label><select id="paymentsSite"><option value="">All</option></select>
+          <label>Period:</label>
+          <select id="paymentsPeriod"><option value="all">All</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>
+          <label>From:</label><input type="date" id="paymentsFrom">
+          <label>To:</label><input type="date" id="paymentsTo">
+          <label>Role:</label> <select id="paymentsRole"><option value="">All</option> <option value="Mason">Mason</option> <option value="Plumber">Plumber</option> <option value="Carpenter">Carpenter</option> <option value="Casual">Casual</option> </select>
+          <button onclick="loadPayments()">Filter</button>
+        </div>
+        <table id="paymentsTable" style="width:100%;border-collapse:collapse"></table>
+        <div id="paymentsEmpty" class="no-data" style="display:none">No records</div>
+      </section>
+
+      <!-- Workers -->
+      <section id="cardWorkers" class="report-card">
+        <h3>Registered Workers</h3>
+        <div class="filters">
+          <label>Site:</label><select id="workersSite"><option value="">All</option></select>
+          <label>From:</label><input type="date" id="workersFrom">
+          <label>To:</label><input type="date" id="workersTo">
+          <button onclick="loadWorkers()">Filter</button>
+        </div>
+        <table id="workersTable" style="width:100%;border-collapse:collapse"></table>
+        <div id="workersEmpty" class="no-data" style="display:none">No records</div>
+      </section>
+
+      <!-- Inventory -->
+      <section id="cardInventory" class="report-card">
+        <h3>Inventory</h3>
+        <div class="filters">
+          <label>Site:</label><select id="inventorySite"><option value="">All</option></select>
+          <button onclick="loadInventory()">Filter</button>
+        </div>
+        <table id="inventoryTable" style="width:100%;border-collapse:collapse"></table>
+        <div id="inventoryEmpty" class="no-data" style="display:none">No records</div>
+      </section>
+    </main>
+  </div>
+
+  <script src="assets/js/reports.js"></script>
+</body>
+</html>

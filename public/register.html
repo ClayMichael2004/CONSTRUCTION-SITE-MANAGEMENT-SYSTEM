@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Register New User</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #283e51, #485563);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      padding-top: 50px;
+    }
+    .register-container {
+      background: #fff;
+      padding: 1.8rem 2rem;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+    h2 { margin-bottom: 1.2rem; color: #283e51; font-size: 1.4rem; }
+    .form-group { margin-bottom: 1rem; text-align: left; }
+    label { display: block; margin-bottom: 0.4rem; font-weight: 600; color: #333; font-size: 0.9rem; }
+    input, select { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem; }
+    button { width: 100%; padding: 0.75rem; border: none; border-radius: 6px; background: #283e51; color: #fff; font-size: 1rem; font-weight: 500; cursor: pointer; transition: background 0.3s ease; }
+    button:hover { background: #1f2937; }
+    .message { margin-top: 1rem; font-size: 0.9rem; }
+    .error { color: red; }
+    .success { color: green; }
+    .back-link { display: block; margin-top: 1rem; text-decoration: none; color: #283e51; font-weight: 600; font-size: 0.9rem; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="register-container">
+    <h2>Register New User</h2>
+    <form id="registerForm">
+      <div class="form-group">
+        <label for="name">Full Name</label>
+        <input type="text" id="name" placeholder="Enter full name" required />
+      </div>
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" placeholder="Enter email" required />
+      </div>
+      <div class="form-group">
+        <label for="phone">Phone Number</label>
+        <input type="text" id="phone" placeholder="Enter phone number" />
+      </div>
+      <div class="form-group">
+        <label for="password">Temporary Password</label>
+        <input type="password" id="password" placeholder="Enter password" required />
+      </div>
+      <div class="form-group">
+        <label for="role">Role</label>
+        <select id="role" required>
+          <option value="" disabled selected>Select role</option>
+          <option value="secretary">Secretary</option>
+          <option value="manager">Site Manager</option>
+        </select>
+      </div>
+      <div class="form-group hidden" id="siteGroup">
+        <label for="site">Select Site</label>
+        <select id="site">
+          <option value="" disabled selected>Loading sites...</option>
+        </select>
+      </div>
+      <button type="submit">Register User</button>
+      <div class="message" id="message"></div>
+    </form>
+    <a href="admin.html" class="back-link">⬅ Back to Dashboard</a>
+  </div>
+
+  <script>
+  const form = document.getElementById('registerForm');
+  const messageDiv = document.getElementById('message');
+  const roleSelect = document.getElementById('role');
+  const siteGroup = document.getElementById('siteGroup');
+  const siteSelect = document.getElementById('site');
+  const token = localStorage.getItem("token");
+
+  // Show/hide site dropdown if secretary is selected
+  roleSelect.addEventListener('change', () => {
+    if (roleSelect.value === 'secretary') {
+      siteGroup.classList.remove('hidden');
+    } else {
+      siteGroup.classList.add('hidden');
+    }
+  });
+
+  // Load sites from backend
+  async function loadSites() {
+    try {
+      const res = await fetch('/api/sites', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const sites = await res.json();
+      siteSelect.innerHTML = '<option value="" disabled selected>Select site</option>';
+      sites.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.id;             // ✅ FIX: use id
+        opt.textContent = s.name;
+        siteSelect.appendChild(opt);
+      });
+    } catch (err) {
+      console.error("Error loading sites:", err);
+      siteSelect.innerHTML = '<option value="" disabled>Error loading sites</option>';
+    }
+  }
+
+  // Load sites immediately
+  loadSites();
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const password = document.getElementById('password').value;
+    const role = roleSelect.value;
+    const site_id = siteSelect.value;
+
+    if (!token) {
+      messageDiv.textContent = "Unauthorized: Please log in as Admin.";
+      messageDiv.className = "message error";
+      return;
+    }
+
+    if (role === 'secretary' && (!site_id || site_id === "")) {
+      messageDiv.textContent = "Site is required for secretaries";
+      messageDiv.className = "message error";
+      return;
+    }
+
+    const body = { name, email, phone, password, role };
+    if (role === 'secretary') body.siteId = site_id;   // ✅ send site_id
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        messageDiv.textContent = data.msg || "Registration failed";
+        messageDiv.className = "message error";
+      } else {
+        messageDiv.textContent = "User registered successfully!";
+        messageDiv.className = "message success";
+        form.reset();
+        siteGroup.classList.add('hidden'); // hide site after reset
+      }
+    } catch (err) {
+      messageDiv.textContent = "Server error, please try again.";
+      messageDiv.className = "message error";
+    }
+  });
+</script>
+</body>
+</html>

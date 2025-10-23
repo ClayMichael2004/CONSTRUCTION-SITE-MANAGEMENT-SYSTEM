@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Construction Site Management - Login</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #1f4037, #99f2c8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .login-container {
+      background: #fff;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+    }
+    h2 { margin-bottom: 1.5rem; color: #1f4037; }
+    .form-group { margin-bottom: 1rem; text-align: left; }
+    label { display:block; margin-bottom: .5rem; font-weight:600; color:#333; }
+    input { width:100%; padding:.8rem; border:1px solid #ccc; border-radius:8px; font-size:1rem; }
+    button { width:100%; padding:.9rem; border:none; border-radius:8px; background:#1f4037; color:#fff; font-size:1.05rem; cursor:pointer; }
+    button:hover{ background:#14532d; }
+    .message{ margin-top:1rem; font-size:.95rem; }
+    .message.error{ color:#d63031; }
+    .message.success{ color:#27ae60; }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h2>Site Management Login</h2>
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" placeholder="Enter your email" required />
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Enter your password" required />
+      </div>
+      <button type="submit">Login</button>
+      <div class="message" id="message"></div>
+    </form>
+  </div>
+
+<script>
+const form = document.getElementById('loginForm');
+const messageDiv = document.getElementById('message');
+
+function decodeJwtPayload(t) {
+  try {
+    const payload = t.split('.')[1];
+    const json = atob(payload.replace(/-/g,'+').replace(/_/g,'/'));
+    return JSON.parse(decodeURIComponent(escape(json)));
+  } catch (e) { return null; }
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      messageDiv.textContent = data.msg || "Login failed";
+      messageDiv.className = "message error";
+      return;
+    }
+    // save token, role, name
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("role", data.role);
+    localStorage.setItem("name", data.name || "");
+    // store siteId if server returned it (preferred)
+    if (data.siteId) {
+      localStorage.setItem("siteId", data.siteId);
+      // optionally store site name too if server provided (data.siteName)
+      if (data.siteName) localStorage.setItem("siteName", data.siteName);
+    } else {
+      // fallback: decode token payload to find siteId
+      const payload = decodeJwtPayload(data.token);
+      if (payload) {
+        const sid = payload.siteId || payload.site_id || payload.site;
+        if (sid) localStorage.setItem("siteId", sid);
+      }
+    }
+
+    messageDiv.textContent = "Login successful! Redirecting...";
+    messageDiv.className = "message success";
+
+    setTimeout(() => {
+      if (data.role === "admin") window.location.href = "admin.html";
+      else if (data.role === "secretary") window.location.href = "secretary.html";
+      else if (data.role === "manager") window.location.href = "manager.html";
+      else window.location.href = "/";
+    }, 700);
+  } catch (err) {
+    messageDiv.textContent = "Server error, please try again.";
+    messageDiv.className = "message error";
+  }
+});
+</script>
+
+</body>
+</html>

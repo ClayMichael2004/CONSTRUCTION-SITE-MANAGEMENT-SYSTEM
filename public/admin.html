@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - Construction Site Management</title>
+  <link rel="stylesheet" href="assets/css/dashboard.css">
+</head>
+<body>
+  <header>
+    <h1>Admin Dashboard</h1>
+    <button onclick="logout()">Logout</button>
+  </header>
+
+  <main class="dashboard">
+    <div class="card">
+      <h3>Register Users</h3>
+      <p>Create Secretary and Manager accounts.</p>
+      <a href="register.html">Go</a>
+    </div>
+    <div class="card">
+      <h3>View Reports</h3>
+      <p>Check attendance, payment, and inventory reports.</p>
+      <a href="reports.html">Go</a>
+    </div>
+    <div class="card">
+      <h3>Add Site</h3>
+      <p>Create new construction sites for secretaries.</p>
+      <a href="sites.html">Go</a>
+    </div>
+    <div class="card">
+      <h3>Add Role/Expertise</h3>
+      <p>Create roles like masons or any other role and add the amount payable as per role.</p>
+      <a href="roles.html">Go</a>
+    </div>
+    <div class="card full-width">
+      <h3>User Management</h3>
+      <p>View, edit, reset passwords, and delete users.</p>
+      <table id="userTable">
+        <thead>
+         <tr>
+            <th>ID</th><th>Name</th><th>Email</th><th>Phone</th>
+            <th>Role</th><th>Site</th><th>Registered</th><th>Actions</th>
+        </tr>
+
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Edit Modal -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <h3>Edit User</h3>
+      <form id="editForm">
+        <input type="hidden" id="editUserId">
+        <label>Name</label>
+        <input type="text" id="editName" required>
+        <label>Email</label>
+        <input type="email" id="editEmail" required>
+        <label>Phone</label>
+        <input type="text" id="editPhone">
+        <label>Role</label>
+        <select id="editRole" required>
+          <option value="secretary">Secretary</option>
+          <option value="manager">Manager</option>
+          <option value="admin">Admin</option>
+        </select>
+        <label>Site (only for Secretaries)</label>
+        <select id="editSite">
+            <option value="">-- Select Site --</option>
+        </select>
+
+        <button type="submit" class="save">Save Changes</button>
+        <button type="button" onclick="closeEditModal()" class="cancel">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Reset Modal -->
+  <div id="resetModal" class="modal">
+    <div class="modal-content">
+      <h3>Reset Password</h3>
+      <form id="resetForm">
+        <input type="hidden" id="resetUserId">
+        <label>New Password</label>
+        <input type="password" id="newPassword" required>
+        <button type="submit" class="reset">Reset</button>
+        <button type="button" onclick="closeResetModal()" class="cancel">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="assets/js/admin.js"></script>
+</body>
+</html>
