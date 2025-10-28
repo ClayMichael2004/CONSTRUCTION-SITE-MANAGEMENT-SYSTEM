@@ -6,6 +6,7 @@ const secretaryRoutes= require('./routes/secretaryRoutes');
 const siteRoutes = require('./routes/sites');
 const rolesRoutes = require('./routes/roles');
 const reportsRoutes=require("./routes/reports");
+const managerRoutes=require('./routes/managerRoutes');
 const db=require('./config/db');
 
 dotenv.config();
@@ -24,8 +25,9 @@ app.use(express.static('public'));
 app.use('/api/auth', authRoutes);
 app.use('/api/secretary',secretaryRoutes);
 app.use('/api/sites', siteRoutes);
-app.use("/api/roles", require("./routes/roles"));
-app.use("/api/reports", reportsRoutes);
+app.use('/api/roles', require("./routes/roles"));
+app.use('/api/reports', reportsRoutes);
+app.use('/api/manager', managerRoutes)
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, ()=> console.log(` Server running on port ${PORT}`));

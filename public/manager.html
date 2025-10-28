@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Site Manager Dashboard - Smart SitePay</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+    body { display: flex; background: #f7f8fa; color: #333; min-height: 100vh; }
+
+    .sidebar {
+      width: 240px;
+      background: #054d20;
+      color: white;
+      padding: 25px 15px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .menu a {
+      display: block;
+      padding: 12px 15px;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      transition: background 0.3s;
+    }
+
+    .menu a:hover, .menu a.active {
+      background: #0a8637;
+    }
+
+    .logout {
+      background: #e74c3c;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .logout:hover { background: #c0392b; }
+
+    .content {
+      flex: 1;
+      padding: 25px 40px;
+      overflow-y: auto;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+    }
+
+    .header .user-info {
+      text-align: right;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      transition: transform 0.2s;
+    }
+
+    .card:hover { transform: translateY(-2px); }
+
+    .section { display: none; }
+    .section.active { display: block; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+
+    th, td {
+      padding: 12px 10px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+
+    th { background: #f1f1f1; }
+
+    .btn {
+      background: #0b802f;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .btn:hover { background: #066d27; }
+  </style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <div>
+      <h2>Manager</h2>
+      <div class="menu">
+        <a href="#" class="active" data-section="dashboard">🏠 Dashboard</a>
+        <a href="#" data-section="workers">👷 Workers</a>
+        <a href="#" data-section="attendance">🗓 Attendance</a>
+        <a href="#" data-section="payments">💵 Payments</a>
+        <a href="#" data-section="reports">📊 Reports</a>
+      </div>
+    </div>
+    <button class="logout" onclick="logout()">Logout</button>
+  </div>
+
+  <div class="content">
+    <div class="header">
+      <h1 id="sectionTitle">Dashboard</h1>
+      <div class="user-info">
+        <p><strong id="managerName"></strong></p>
+        <p>Site: <span id="siteName"></span></p>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="section active">
+      <div class="card">
+        <h3>Site Overview</h3>
+        <p><strong>Location:</strong> <span id="siteLocation"></span></p>
+        <p><strong>Total Workers:</strong> <span id="workerCount"></span></p>
+      </div>
+    </div>
+
+    <!-- WORKERS -->
+    <div id="workers" class="section">
+      <div class="card">
+        <h3>Workers List</h3>
+        <table id="workersTable">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Position</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ATTENDANCE -->
+    <div id="attendance" class="section">
+      <div class="card">
+        <h3>Attendance Records</h3>
+        <table id="attendanceTable">
+          <thead>
+            <tr>
+              <th>Worker</th>
+              <th>Date</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PAYMENTS -->
+    <div id="payments" class="section">
+      <div class="card">
+        <h3>Pending Payments</h3>
+        <table id="paymentsTable">
+          <thead>
+            <tr>
+              <th>Worker</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div id="reports" class="section">
+      <div class="card">
+        <h3>Reports Summary</h3>
+        <p>Total Workers Paid: <span id="paidCount"></span></p>
+        <p>Pending Payments: <span id="pendingCount"></span></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '../login.html';
+
+    const menuLinks = document.querySelectorAll('.menu a');
+    const sections = document.querySelectorAll('.section');
+    const sectionTitle = document.getElementById('sectionTitle');
+
+    menuLinks.forEach(link => {
+      link.addEventListener('click', e => {
+        e.preventDefault();
+        menuLinks.forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+
+        const target = link.getAttribute('data-section');
+        sectionTitle.textContent = link.textContent.replace(/[^a-zA-Z ]/g, '');
+        sections.forEach(sec => sec.classList.remove('active'));
+        document.getElementById(target).classList.add('active');
+
+        if (target === 'workers') loadWorkers();
+        if (target === 'attendance') loadAttendance();
+        if (target === 'payments') loadPayments();
+        if (target === 'reports') loadReports();
+      });
+    });
+
+    function logout() {
+      localStorage.removeItem('token');
+      window.location.href = '../login.html';
+    }
+
+    async function loadDashboard() {
+      const res = await fetch('/api/manager/dashboard', { headers: { Authorization: 'Bearer ' + token } });
+      const data = await res.json();
+
+      document.getElementById('managerName').textContent = data.manager.name;
+      document.getElementById('siteName').textContent = data.site.name;
+      document.getElementById('siteLocation').textContent = data.site.location;
+      document.getElementById('workerCount').textContent = data.workerCount;
+    }
+
+    async function loadWorkers() {
+      const res = await fetch('/api/manager/workers', { headers: { Authorization: 'Bearer ' + token } });
+      const data = await res.json();
+      const tbody = document.querySelector('#workersTable tbody');
+      tbody.innerHTML = '';
+      data.forEach(w => {
+        tbody.innerHTML += `<tr><td>${w.name}</td><td>${w.phone}</td><td>${w.position}</td></tr>`;
+      });
+    }
+
+    async function loadAttendance() {
+      const res = await fetch('/api/manager/attendance', { headers: { Authorization: 'Bearer ' + token } });
+      const data = await res.json();
+      const tbody = document.querySelector('#attendanceTable tbody');
+      tbody.innerHTML = '';
+      data.forEach(a => {
+        tbody.innerHTML += `<tr><td>${a.worker_name}</td><td>${a.date}</td><td>${a.status}</td></tr>`;
+      });
+    }
+
+    async function loadPayments() {
+      const res = await fetch('/api/manager/payments', { headers: { Authorization: 'Bearer ' + token } });
+      const data = await res.json();
+      const tbody = document.querySelector('#paymentsTable tbody');
+      tbody.innerHTML = '';
+      data.forEach(p => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${p.worker_name}</td>
+            <td>${p.amount}</td>
+            <td>${p.status}</td>
+            <td>${p.status === 'Pending' ? `<button class="btn" onclick="markPaid(${p.id})">Mark as Paid</button>` : '—'}</td>
+          </tr>`;
+      });
+    }
+
+    async function markPaid(id) {
+      await fetch('/api/manager/payments/' + id + '/mark-paid', {
+        method: 'PUT',
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      loadPayments();
+    }
+
+    async function loadReports() {
+      const res = await fetch('/api/manager/reports', { headers: { Authorization: 'Bearer ' + token } });
+      const data = await res.json();
+      document.getElementById('paidCount').textContent = data.paid;
+      document.getElementById('pendingCount').textContent = data.pending;
+    }
+
+    loadDashboard();
+  </script>
+</body>
+</html>
