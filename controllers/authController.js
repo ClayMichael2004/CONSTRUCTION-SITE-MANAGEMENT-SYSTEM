@@ -10,8 +10,9 @@ exports.register = async (req, res) => {
     return res.status(400).json({ msg: "All fields are required" });
   }
 
-  if (role === "secretary" && !siteId) {
-    return res.status(400).json({ msg: "Site is required for secretaries" });
+  // ✅ Require site for both secretaries and site managers
+  if ((role === "secretary" || role === "manager") && !siteId) {
+    return res.status(400).json({ msg: "Site is required for this role" });
   }
 
   try {
@@ -28,7 +29,6 @@ exports.register = async (req, res) => {
     res.status(500).json({ msg: err.message });
   }
 };
-
 
 // Login
 exports.login = (req, res) => {

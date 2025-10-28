@@ -87,7 +87,7 @@
 
   // Show/hide site dropdown if secretary is selected
   roleSelect.addEventListener('change', () => {
-    if (roleSelect.value === 'secretary') {
+    if (roleSelect.value === 'secretary'|| roleSelect.value === 'manager') {
       siteGroup.classList.remove('hidden');
     } else {
       siteGroup.classList.add('hidden');
@@ -127,20 +127,23 @@
     const role = roleSelect.value;
     const site_id = siteSelect.value;
 
+    console.log("ROLE VALUE BEING SENT:", role);
+
+
     if (!token) {
       messageDiv.textContent = "Unauthorized: Please log in as Admin.";
       messageDiv.className = "message error";
       return;
     }
-
-    if (role === 'secretary' && (!site_id || site_id === "")) {
-      messageDiv.textContent = "Site is required for secretaries";
+    
+    if ((role === 'secretary' || role === 'manager') && (!site_id || site_id === "")) {
+      messageDiv.textContent = "Site is required for this role";
       messageDiv.className = "message error";
       return;
     }
 
     const body = { name, email, phone, password, role };
-    if (role === 'secretary') body.siteId = site_id;   // ✅ send site_id
+    if (role === 'secretary' || role==='manager') body.siteId = site_id;   // ✅ send site_id
 
     try {
       const res = await fetch('/api/auth/register', {
