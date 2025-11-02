@@ -74,6 +74,8 @@ form.addEventListener('submit', async (e) => {
       body: JSON.stringify({ email, password })
     });
     const data = await res.json();
+    console.log("Login response:", data);
+
     if (!res.ok) {
       messageDiv.textContent = data.msg || "Login failed";
       messageDiv.className = "message error";
@@ -96,6 +98,18 @@ form.addEventListener('submit', async (e) => {
         if (sid) localStorage.setItem("siteId", sid);
       }
     }
+
+    // build a complete user object for dashboard pages
+const userObj = {
+  id: data.id || null,
+  name: data.name || "",
+  email: data.email || email,
+  role: data.role || "",
+  siteId: data.siteId || null,
+  siteName: data.siteName || null
+};
+localStorage.setItem("user", JSON.stringify(userObj));
+
 
     messageDiv.textContent = "Login successful! Redirecting...";
     messageDiv.className = "message success";

@@ -30,7 +30,7 @@ exports.register = async (req, res) => {
   }
 };
 
-// Login
+// ====================== LOGIN ======================
 exports.login = (req, res) => {
   const { email, password } = req.body;
 
@@ -42,16 +42,42 @@ exports.login = (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ msg: "Invalid credentials" });
 
+    // ✅ Create token with id, role, siteId
     const token = jwt.sign(
       { id: user.id, role: user.role, siteId: user.site_id },
       process.env.JWT_SECRET,
-      { expiresIn: '1d' }
+      { expiresIn: "1d" }
     );
 
-    // return token, role, name, site
-    res.json({ token, role: user.role, name: user.name, siteId: user.site_id });
+    // ✅ Fetch site name (optional but helps manager dashboard)
+    if (user.role === "manager" && user.site_id) {
+      db.query("SELECT name FROM sites WHERE id = ?", [user.site_id], (err2, siteResults) => {
+        const siteName = siteResults?.[0]?.name || null;
+        return res.json({
+          token,
+          id: user.id,
+          role: user.role,
+          name: user.name,
+          email: user.email,
+          siteId: user.site_id,
+          siteName,
+        });
+      });
+    } else {
+      // For admin or users without site assignment
+      res.json({
+        token,
+        id: user.id,
+        role: user.role,
+        name: user.name,
+        email: user.email,
+        siteId: user.site_id || null,
+        siteName: null,
+      });
+    }
   });
 };
+
 
 // Get all users (admin)
 exports.getUsers = (req, res) => {

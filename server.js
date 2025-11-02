@@ -27,7 +27,8 @@ app.use('/api/secretary',secretaryRoutes);
 app.use('/api/sites', siteRoutes);
 app.use('/api/roles', require("./routes/roles"));
 app.use('/api/reports', reportsRoutes);
-app.use('/api/manager', managerRoutes)
+app.use("/api/manager", require("./routes/managerRoutes"));
+
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, ()=> console.log(` Server running on port ${PORT}`));
