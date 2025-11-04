@@ -11,5 +11,7 @@ router.get('/inventory', protect(['manager']), managerController.getInventory);
 router.get('/payments', protect(['manager']), managerController.getPayments);
 router.put('/payments/:id/mark-paid', protect(['manager']), managerController.markPaymentPaid);
 router.get('/reports', protect(['manager']), managerController.getReports);
+router.put('/payments/mark-all', managerController.markAllPaid);
+
 
 module.exports = router;

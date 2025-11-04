@@ -1,4 +1,3 @@
-// controllers/managerController.js
 const db = require('../config/db');
 
 function getSiteIdFromReqUser(user) {
@@ -43,7 +42,7 @@ exports.getDashboard = (req, res) => {
 
         // total present today (match either site_id or site)
         const attSql = `
-          SELECT COUNT(a.id) AS totalPresent
+          SELECT COUNT(DISTINCT a.worker_id) AS totalPresent
           FROM attendance a
           JOIN workers w ON a.worker_id = w.id
           WHERE (w.site_id = ? OR w.site = ?) AND DATE(a.date) = ? AND a.status = 'Present'
@@ -108,62 +107,139 @@ exports.getWorkers = (req, res) => {
   });
 };
 
-// ---------------- ATTENDANCE ----------------
+// ================== GET ATTENDANCE ==================
 exports.getAttendance = (req, res) => {
   const siteId = getSiteIdFromReqUser(req.user);
+  const { date } = req.query; // optional filter
+
   if (!siteId) return res.status(400).json({ msg: "No site assigned" });
 
   ensureSiteName(siteId, (err, siteName) => {
-    if (err) return res.status(500).json({ msg: "DB error" });
+    if (err) {
+      console.error("Get attendance site lookup error:", err);
+      return res.status(500).json({ msg: "DB error" });
+    }
 
-    const sql = `
-      SELECT a.id, w.full_name AS worker_name, w.role, w.phone, a.date, a.status
+    // Join workers and attendance, filter by worker's site (site_id or text), optional date
+    let sql = `
+      SELECT 
+        a.id,
+        w.id AS worker_id,
+        w.full_name AS worker_name,
+        w.role,
+        w.phone,
+        a.date,
+        a.status
       FROM attendance a
       JOIN workers w ON a.worker_id = w.id
-      WHERE w.site_id = ? OR w.site = ?
-      ORDER BY a.date DESC
+      WHERE (w.site_id = ? OR w.site = ?)
     `;
-    db.query(sql, [siteId, siteName], (err2, rows) => {
+    const params = [siteId, siteName];
+
+    if (date) {
+      sql += " AND DATE(a.date) = ?";
+      params.push(date);
+    }
+
+    sql += " ORDER BY a.date DESC, w.full_name ASC";
+
+    db.query(sql, params, (err2, results) => {
       if (err2) {
         console.error("Get attendance error:", err2);
         return res.status(500).json({ msg: "DB error" });
       }
-      res.json(rows || []);
+
+      // Deduplicate: keep one row per worker per date (in case of accidental duplicate entries)
+      const seen = new Set();
+      const unique = [];
+      for (const r of results) {
+        const key = `${r.worker_id}::${r.date}`; // unique per worker per date
+        if (!seen.has(key)) {
+          seen.add(key);
+          unique.push(r);
+        }
+      }
+
+      res.json(unique);
     });
   });
 };
 
-// ---------------- PAYMENTS ----------------
+// ================== GET PAYMENTS ==================
 exports.getPayments = (req, res) => {
   const siteId = getSiteIdFromReqUser(req.user);
+  // optional period filter: ?start=YYYY-MM-DD&end=YYYY-MM-DD
+  const { start, end } = req.query;
+
   if (!siteId) return res.status(400).json({ msg: "No site assigned" });
 
   ensureSiteName(siteId, (err, siteName) => {
-    if (err) return res.status(500).json({ msg: "DB error" });
+    if (err) {
+      console.error("Get payments site lookup error:", err);
+      return res.status(500).json({ msg: "DB error" });
+    }
 
-    const sql = `
+    // Aggregate attendance into days_worked per worker (distinct dates) to avoid duplicates
+    // Use worker.daily_pay to compute amount (your DB column is daily_pay)
+    let sql = `
       SELECT 
-        p.id,
+        w.id AS worker_id,
         w.full_name AS worker_name,
-        COALESCE(w.role, p.role) AS role,
-        p.days_worked,
-        p.amount,
-        COALESCE(p.status, 'Pending') AS status,
-        p.approved_by,
-        p.approved_at,
-        p.period_start,
-        p.period_end
-      FROM payments p
-      JOIN workers w ON p.worker_id = w.id
-      WHERE w.site_id = ? OR w.site = ?
-      ORDER BY p.id DESC
+        w.role,
+        w.phone,
+        COUNT(DISTINCT a.date) AS days_worked,
+        (COUNT(DISTINCT a.date) * COALESCE(w.daily_pay, 0)) AS amount
+      FROM workers w
+      LEFT JOIN attendance a ON a.worker_id = w.id
+      WHERE (w.site_id = ? OR w.site = ?)
     `;
-    db.query(sql, [siteId, siteName], (err2, rows) => {
+    const params = [siteId, siteName];
+
+    if (start && end) {
+      sql += " AND a.date BETWEEN ? AND ?";
+      params.push(start, end);
+    }
+
+    sql += `
+      GROUP BY w.id, w.full_name, w.role, w.phone, w.daily_pay
+      ORDER BY w.full_name ASC
+    `;
+
+    db.query(sql, params, (err2, results) => {
       if (err2) {
         console.error("Get payments error:", err2);
         return res.status(500).json({ msg: "DB error" });
       }
-      res.json(rows || []);
+
+      // Augment each row with a status field by checking payments table for an approved payment covering the period if period provided.
+      // If no period provided, leave status as 'Pending' (UI can treat it as summary to create payments)
+      if (!start || !end) {
+        const withStatus = results.map(r => ({ ...r, status: 'Pending' }));
+        return res.json(withStatus);
+      }
+
+      // If start/end provided, check payments table per worker for a payment that matches period exactly
+      const workerIds = results.map(r => r.worker_id);
+      if (workerIds.length === 0) return res.json(results.map(r => ({ ...r, status: 'Pending' })));
+
+      // Build query to fetch payments for these workers and exact period
+      const placeholders = workerIds.map(() => '?').join(',');
+      const paySql = `
+        SELECT worker_id, status
+        FROM payments
+        WHERE worker_id IN (${placeholders})
+          AND period_start = ? AND period_end = ?
+      `;
+      db.query(paySql, [...workerIds, start, end], (err3, payRows) => {
+        if (err3) {
+          console.error("Get payments - check payments error:", err3);
+          return res.status(500).json({ msg: "DB error" });
+        }
+        const statusMap = {};
+        for (const p of (payRows || [])) statusMap[p.worker_id] = p.status || 'Pending';
+        const out = results.map(r => ({ ...r, status: statusMap[r.worker_id] || 'Pending' }));
+        res.json(out);
+      });
     });
   });
 };
@@ -205,6 +281,80 @@ exports.markPaymentPaid = (req, res) => {
           res.json({ msg: "Payment approved", payment: (updated && updated[0]) || null });
         });
       });
+    });
+  });
+};
+
+// ================== MARK ALL PAID ==================
+// Expects body: { period_start: "YYYY-MM-DD", period_end: "YYYY-MM-DD" }
+// This will create a payment row per worker covering the given period and mark as Approved.
+exports.markAllPaid = (req, res) => {
+  const siteId = getSiteIdFromReqUser(req.user);
+  const { period_start, period_end } = req.body || {};
+  const managerName = req.user?.name || req.user?.email || 'Manager';
+
+  if (!siteId) return res.status(400).json({ msg: "No site assigned" });
+  if (!period_start || !period_end) return res.status(400).json({ msg: "period_start and period_end are required" });
+
+  ensureSiteName(siteId, (err, siteName) => {
+    if (err) return res.status(500).json({ msg: "DB error" });
+
+    // Aggregate attendance per worker in the period
+    const aggSql = `
+      SELECT 
+        w.id AS worker_id,
+        w.role,
+        COALESCE(w.site, ?) AS site_text,
+        COUNT(DISTINCT a.date) AS days_worked,
+        (COUNT(DISTINCT a.date) * COALESCE(w.daily_pay,0)) AS amount
+      FROM workers w
+      LEFT JOIN attendance a ON a.worker_id = w.id AND a.date BETWEEN ? AND ?
+      WHERE (w.site_id = ? OR w.site = ?)
+      GROUP BY w.id, w.role, w.site, w.daily_pay
+      HAVING days_worked > 0
+    `;
+    db.query(aggSql, [siteName, period_start, period_end, siteId, siteName], (err2, rows) => {
+      if (err2) {
+        console.error("Mark all paid - aggregate error:", err2);
+        return res.status(500).json({ msg: "DB error" });
+      }
+
+      if (!rows || rows.length === 0) {
+        return res.json({ msg: "No attendance found for period; nothing to mark." });
+      }
+
+      // Insert payment for each worker (Approved)
+      const insertSql = `
+        INSERT INTO payments 
+          (worker_id, role, site, period_start, period_end, days_worked, amount, status, approved_by, approved_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'Approved', ?, NOW())
+      `;
+
+      // Use series to avoid overwhelming DB
+      const tasks = rows.map(r => {
+        return new Promise((resolve, reject) => {
+          db.query(insertSql, [
+            r.worker_id,
+            r.role || null,
+            r.site_text || siteName || '',
+            period_start,
+            period_end,
+            r.days_worked,
+            r.amount,
+            managerName
+          ], (err3) => {
+            if (err3) return reject(err3);
+            resolve();
+          });
+        });
+      });
+
+      Promise.all(tasks)
+        .then(() => res.json({ msg: "All workers marked as paid for the period", count: rows.length }))
+        .catch((insErr) => {
+          console.error("Mark all paid - insert error:", insErr);
+          res.status(500).json({ msg: "Error inserting payments" });
+        });
     });
   });
 };

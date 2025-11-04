@@ -79,6 +79,10 @@
 
       <section id="attendance" class="section">
         <h3>Attendance</h3>
+        <div style="margin-bottom:10px;">
+            <input type="date" id="attendanceDateFilter" />
+            <button id="attendanceFilterBtn">Filter</button>
+        </div>
         <table id="attendanceTable">
           <thead><tr><th>Name</th><th>Role</th><th>Phone</th><th>Date</th><th>Status</th></tr></thead><tbody></tbody>
         </table>
@@ -93,6 +97,10 @@
 
       <section id="payments" class="section">
         <h3>Payments</h3>
+        <div style="margin-bottom:10px;">
+            <button id="markAllPaidBtn">Mark All Paid</button>
+        </div>
+
         <table id="paymentsTable">
           <thead><tr><th>Worker</th><th>Role</th><th>Days</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody></tbody>
         </table>
