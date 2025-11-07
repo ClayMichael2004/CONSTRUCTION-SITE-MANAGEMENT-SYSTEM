@@ -101,68 +101,257 @@ async function loadInventory() {
     console.error("Inventory load error:", e);
   }
 }
-
-// PAYMENTS
+// === PAYMENTS ===
 async function loadPayments() {
   try {
     const data = await getJson("http://localhost:5000/api/manager/payments");
+    console.log("📦 Payments data:", data);
+
     const tbody = document.querySelector("#paymentsTable tbody");
+
     tbody.innerHTML = data.map(p => `
       <tr>
         <td>${p.worker_name}</td>
         <td>${p.role}</td>
-        <td>${p.days_worked}</td>
-        <td>${p.amount}</td>
-        <td>${p.status}</td>
-        <td>${p.status === "Pending" ? `<button class="btn mark-paid" data-id="${p.id}">Mark Paid</button>` : "—"}</td>
+        <td>${p.days_worked ?? '-'}</td>
+        <td>${p.amount ?? '-'}</td>
+        <td class="status ${p.status?.toLowerCase() || ''}">${p.status ?? 'Pending'}</td>
+        <td>
+          ${
+            p.status === "Pending" || !p.payment_id
+              ? `<button class="btn mark-paid" data-worker="${p.worker_id}">Mark Paid</button>`
+              : "—"
+          }
+        </td>
       </tr>
     `).join("");
 
-    // Add "Mark All Paid" button
-document.getElementById("markAllPaidBtn")?.addEventListener("click", async () => {
-  if (!confirm("Mark all as paid?")) return;
-  try {
-    await fetch("http://localhost:5000/api/manager/payments/mark-all", {
-      method: "PUT",
-      headers
-    });
-    await loadPayments();
-    await loadDashboard();
-  } catch (err) {
-    console.error("Mark all paid error:", err);
-  }
-});
-
-
-    document.querySelectorAll(".mark-paid").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        await fetch(`http://localhost:5000/api/manager/payments/${btn.dataset.id}/mark-paid`, {
-          method: "PUT",
-          headers
-        });
-        await loadPayments();
-        await loadDashboard();
+    // === Attach Mark Paid listeners ===
+    tbody.querySelectorAll(".mark-paid").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const workerId = btn.getAttribute("data-worker");
+        console.log("🔍 Worker ID:", workerId);
+        markPaymentAsPaid(workerId, btn);
       });
     });
+
   } catch (e) {
     console.error("Payments load error:", e);
   }
 }
 
+// === INDIVIDUAL MARK AS PAID (Attendance-based) ===
+async function markPaymentAsPaid(workerId, btn) {
+  try {
+    const response = await fetch(`http://localhost:5000/api/manager/payments/mark-paid`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+      body: JSON.stringify({ worker_id: workerId }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      showToast(`❌ ${data.msg || "Mark paid failed"}`, "error");
+      return;
+    }
+
+    showToast(`✅ ${data.msg} (${data.period_start} → ${data.period_end})`, "success");
+
+    // Refresh both Payments and Reports
+    loadPayments();
+    loadReports();
+
+  } catch (err) {
+    console.error("Mark paid error:", err);
+    showToast("❌ Network error marking payment", "error");
+  }
+}
+
+document.getElementById("closePeriodBtn").addEventListener("click", async () => {
+  if (!confirm("Are you sure you want to close the current payment period?")) return;
+
+  try {
+    const response = await fetch(`http://localhost:5000/api/manager/payments/close-period`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      showToast(`❌ ${data.msg || "Failed to close period"}`, "error");
+      return;
+    }
+
+    showToast(`✅ ${data.msg} (${data.period_start} → ${data.period_end})`, "success");
+
+    // Refresh both tables
+    loadPayments();
+    loadReports();
+
+  } catch (err) {
+    console.error("Close period error:", err);
+    showToast("❌ Server error while closing period", "error");
+  }
+});
+
+
+// === Simple Toast Notification ===
+function showToast(message, type = "info") {
+  const toast = document.createElement("div");
+  toast.textContent = message;
+  toast.className = `toast ${type}`;
+  Object.assign(toast.style, {
+    position: "fixed",
+    bottom: "20px",
+    right: "20px",
+    background: type === "error" ? "#ff4d4f" : "#4caf50",
+    color: "white",
+    padding: "10px 16px",
+    borderRadius: "8px",
+    boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+    zIndex: 9999,
+  });
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+
+// === EXPORT APPROVED PAYMENTS TO CSV ===
+function exportApprovedToCSV() {
+  const rows = [...document.querySelectorAll('#paymentsTable tbody tr')];
+  const approved = rows.filter(r =>
+    r.querySelector('.status')?.textContent.trim().toLowerCase() === 'approved'
+  );
+
+  if (approved.length === 0) {
+    showToast('No approved payments found', 'info');
+    return;
+  }
+
+  let csvContent = 'Worker Name,Days Worked,Amount,Status\n';
+  approved.forEach(row => {
+    const cols = row.querySelectorAll('td');
+    const name = cols[0].textContent.trim();
+    const days = cols[1].textContent.trim();
+    const amount = cols[2].textContent.trim();
+    const status = cols[3].textContent.trim();
+    csvContent += `${name},${days},${amount},${status}\n`;
+  });
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'approved_payments.csv';
+  link.click();
+
+  showToast('📄 CSV exported successfully', 'success');
+}
+
+// === EXPORT APPROVED PAYMENTS TO PDF ===
+function exportApprovedToPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  const rows = [...document.querySelectorAll('#paymentsTable tbody tr')];
+  const approved = rows.filter(r =>
+    r.querySelector('.status')?.textContent.trim().toLowerCase() === 'approved'
+  );
+
+  if (approved.length === 0) {
+    showToast('No approved payments found', 'info');
+    return;
+  }
+
+  let y = 20;
+  doc.setFontSize(14);
+  doc.text('Approved Payments Report', 14, 15);
+
+  doc.setFontSize(11);
+  doc.text('Worker Name', 14, y);
+  doc.text('Days', 80, y);
+  doc.text('Amount', 110, y);
+  doc.text('Status', 160, y);
+  y += 6;
+
+  approved.forEach(row => {
+    const cols = row.querySelectorAll('td');
+    const name = cols[0].textContent.trim();
+    const days = cols[1].textContent.trim();
+    const amount = cols[2].textContent.trim();
+    const status = cols[3].textContent.trim();
+
+    doc.text(name, 14, y);
+    doc.text(days, 80, y);
+    doc.text(amount, 110, y);
+    doc.text(status, 160, y);
+    y += 6;
+  });
+
+  doc.save('approved_payments.pdf');
+  showToast('📘 PDF exported successfully', 'success');
+}
+
+
+
+
+
 // REPORTS
 async function loadReports() {
   try {
     const data = await getJson("http://localhost:5000/api/manager/reports");
-    const html = `
+
+    const summaryHtml = `
       <p><b>Total Workers:</b> ${data.totalWorkers}</p>
-      <p><b>Total Paid:</b> ${data.totalPaid}</p>
+      <p><b>Total Paid:</b> KES ${data.totalPaid.toLocaleString()}</p>
       <p><b>Pending Payments:</b> ${data.totalPendingPayments}</p>
     `;
-    document.getElementById("reportsSummary").innerHTML = html;
+
+    // Generate payment history table
+    const historyHtml = data.paymentHistory && data.paymentHistory.length
+      ? `
+        <h4>Payment History</h4>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Worker</th>
+              <th>Amount (KES)</th>
+              <th>Status</th>
+              <th>Approved On</th>
+              <th>Closed On</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.paymentHistory.map(h => `
+              <tr>
+                <td>${h.id}</td>
+                <td>${h.worker_name}</td>
+                <td>${Number(h.amount).toLocaleString()}</td>
+                <td>${h.status}</td>
+                <td>${h.approved_at ? new Date(h.approved_at).toLocaleDateString() : '--'}</td>
+                <td>${h.closed_at ? new Date(h.closed_at).toLocaleDateString() : '--'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `
+      : `<p>No payment history yet.</p>`;
+
+    document.getElementById("reportsSummary").innerHTML = summaryHtml + historyHtml;
+
   } catch (e) {
     console.error("Reports load error:", e);
   }
 }
+
 
 // ======== NAVIGATION ========
 const navs = document.querySelectorAll(".sidebar nav a");

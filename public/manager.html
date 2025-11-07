@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Manager Dashboard</title>
   <link rel="stylesheet" href="assets/css/secretary.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
   <style>
     body { background:#f6f8f7; font-family:'Segoe UI',sans-serif; }
     .dashboard { display:flex; min-height:100vh; }
@@ -97,9 +99,13 @@
 
       <section id="payments" class="section">
         <h3>Payments</h3>
-        <div style="margin-bottom:10px;">
-            <button id="markAllPaidBtn">Mark All Paid</button>
+        <div class="export-buttons">
+            <button onclick="exportApprovedToCSV()">Export CSV</button>
+            <button onclick="exportApprovedToPDF()">Export PDF</button>
         </div>
+
+        <button id="closePeriodBtn" class="btn btn-danger">Close Payment Period</button>
+
 
         <table id="paymentsTable">
           <thead><tr><th>Worker</th><th>Role</th><th>Days</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody></tbody>
