@@ -243,31 +243,57 @@ document.getElementById('inventoryForm').addEventListener('submit', async (e) =>
   showMessage(msg, "Inventory added", "success");
   e.target.reset();
   loadInventory();
+  loadInventoryHistory();
 });
+document.addEventListener("DOMContentLoaded", () => {
+  let currentInventoryId = null;
 
-window.promptUpdateInventory = async (id) => {
-  const action = prompt("Type 'TAKEN' to reduce or 'ADDED' to increase:");
-  if (!action || !['TAKEN', 'ADDED'].includes(action.toUpperCase())) return;
+  window.promptUpdateInventory = (id) => {
+    currentInventoryId = id;
+    document.getElementById("updateModal").style.display = "flex";
+  };
 
-  const qty = parseInt(prompt("Enter quantity change:"), 10);
-  if (isNaN(qty)) return alert("Invalid quantity");
-
-  let taken_by = null;
-  if (action.toUpperCase() === 'TAKEN') {
-    taken_by = prompt("Enter person taking the item:");
-    if (!taken_by) return;
+  function closeUpdateModal() {
+    document.getElementById("updateModal").style.display = "none";
+    document.getElementById("updateInventoryForm").reset();
+    document.getElementById("takenByContainer").style.display = "none";
   }
 
-  const { ok, body } = await fetchAuth(`${API}/inventory/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify({ quantity_change: qty, taken_by, action: action.toUpperCase() }),
-  });
+  const actionSelect = document.getElementById("updateAction");
+  const form = document.getElementById("updateInventoryForm");
 
-  if (!ok) return alert(body.error || "Failed to update inventory");
-  alert(body.message);
+  if (actionSelect && form) {
+    actionSelect.addEventListener("change", (e) => {
+      const value = e.target.value;
+      document.getElementById("takenByContainer").style.display =
+        value === "TAKEN" ? "block" : "none";
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const action = document.getElementById("updateAction").value;
+      const quantity_change = parseInt(document.getElementById("updateQuantity").value, 10);
+      const taken_by = action === "TAKEN" ? document.getElementById("updateTakenBy").value : null;
+
+      if (!action || isNaN(quantity_change)) return alert("Please fill in all fields");
+
+      const { ok, body } = await fetchAuth(`${API}/inventory/${currentInventoryId}`, {
+        method: "PUT",
+        body: JSON.stringify({ quantity_change, taken_by, action })
+      });
+
+      if (!ok) return alert(body.error || "Failed to update inventory");
+
+      closeUpdateModal();
+      loadInventory();
+      loadInventoryHistory(currentInventoryId);
+    });
+  }
+
   loadInventory();
-  loadInventoryHistory(id);
-};
+  loadInventoryHistory();
+});
 
 // for viewing the inventiory history
 async function loadInventoryHistory() {

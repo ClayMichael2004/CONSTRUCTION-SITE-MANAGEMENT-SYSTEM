@@ -336,7 +336,7 @@ exports.updateInventory = (req, res) => {
         [id, action, quantity_change, taken_by || null],
         (err3) => {
           if (err3) return res.status(500).json({ error: err3.sqlMessage || "DB error" });
-          res.json({ message: `Inventory ${action === 'TAKEN' ? 'reduced' : 'increased'} successfully`, newQty });
+          res.json({ message: `Inventory ${action === 'TAKEN' ? 'reduced' : 'increased'} successfully`, newQty, action, taken_by: taken_by || 'N/A' });
         }
       );
     });

@@ -41,7 +41,7 @@ document.getElementById("sidebarName").textContent = user.name || "Manager";
 document.getElementById("sidebarSite").textContent = "Site: " + (user.siteName || "—");
 
 document.getElementById("logoutBtn").addEventListener("click", () => {
-  localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "login.html";
 });
 
@@ -128,7 +128,7 @@ async function loadInventory() {
 async function loadPayments() {
   try {
     const res = await fetch("http://localhost:5000/api/manager/payments", {
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      headers: { Authorization: `Bearer ${sessionStorage.getItem("token")}` },
     });
 
     if (!res.ok) throw new Error("Failed to load payments");
@@ -168,7 +168,7 @@ async function loadPayments() {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
+              Authorization: `Bearer ${sessionStorage.getItem("token")}`,
             },
             body: JSON.stringify({ payment_id: paymentId }),
           });
@@ -196,7 +196,7 @@ async function markPaid(workerId) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Authorization: `Bearer ${sessionStorage.getItem("token")}`,
       },
       body: JSON.stringify({ worker_id: workerId }),
     });
@@ -216,7 +216,7 @@ document.getElementById("closePeriodBtn").onclick = async () => {
   try {
     const res = await fetch("http://localhost:5000/api/manager/payments/close-period", {
       method: "PUT",
-      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      headers: { Authorization: `Bearer ${sessionStorage.getItem("token")}` },
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.msg || "Error closing period");
