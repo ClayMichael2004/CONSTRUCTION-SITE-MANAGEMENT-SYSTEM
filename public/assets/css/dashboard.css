@@ -5,7 +5,7 @@ body {
 }
 
 header {
-  background: #1f2937;
+  background: #0b6a57;
   color: #fff;
   padding: 1rem 2rem;
   display: flex;
@@ -130,7 +130,7 @@ button.delete { background: #ef4444; color: white; }
   border-radius: 6px;
   cursor: pointer;
 }
-.modal-content .save { background: #3b82f6; color: white; }
+.modal-content .save { background: #ace0d4; color: white; }
 .modal-content .cancel { background: gray; color: white; margin-left: 10px; }
 .modal-content .reset { background: #f59e0b; color: white; }
 

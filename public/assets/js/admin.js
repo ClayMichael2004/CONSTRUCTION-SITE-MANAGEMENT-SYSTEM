@@ -32,7 +32,7 @@ async function loadUsers() {
         <td>${user.site_name|| "-"}</td>
         <td>${new Date(user.created_at).toLocaleString()}</td>
         <td>
-          <button class="action-btn edit" onclick="editUser(${user.id}, '${user.name}', '${user.email}', '${user.phone || ""}', '${user.role}')">Edit</button>
+          <button class="action-btn edit" onclick="editUser(${user.id}, '${user.name}', '${user.email}', '${user.phone || ""}', '${user.role}', ${user.site_id || 'null'})">Edit</button>
           <button class="action-btn reset" onclick="resetUserPassword(${user.id})">Reset Password</button>
           <button class="action-btn delete" onclick="deleteUser(${user.id})">Delete</button>
         </td>
@@ -66,7 +66,7 @@ async function loadSitesForEdit(selectedId = "") {
 
 
 // --- Edit User ---
-function editUser(id, name, email, phone, role) {
+function editUser(id, name, email, phone, role, siteId) {
   document.getElementById("editUserId").value = id;
   document.getElementById("editName").value = name;
   document.getElementById("editEmail").value = email;
