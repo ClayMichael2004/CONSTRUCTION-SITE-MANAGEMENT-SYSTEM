@@ -165,21 +165,15 @@ exports.getAttendance = (req, res) => {
   });
 };
 
-// ================== GET PAYMENTS ==================
+// ================== GET PAYMENTS (Split: Pending + Approved) ==================
 exports.getPayments = (req, res) => {
   const siteId = getSiteIdFromReqUser(req.user);
-  const { start, end } = req.query; // optional filter
-
   if (!siteId) return res.status(400).json({ msg: "No site assigned" });
 
   ensureSiteName(siteId, (err, siteName) => {
-    if (err) {
-      console.error("Get payments site lookup error:", err);
-      return res.status(500).json({ msg: "DB error" });
-    }
+    if (err) return res.status(500).json({ msg: "DB error" });
 
-    // 🧩 Aggregate attendance by worker (exclude already approved payments)
-    let sql = `
+    const sql = `
       SELECT 
         w.id AS worker_id,
         w.full_name AS worker_name,
@@ -187,181 +181,143 @@ exports.getPayments = (req, res) => {
         w.phone,
         COUNT(DISTINCT a.date) AS days_worked,
         (COUNT(DISTINCT a.date) * COALESCE(w.daily_pay, 0)) AS amount,
-        COALESCE(p.status, 'Pending') AS status
+        COALESCE(p.status, 'Pending') AS status,
+        p.id AS payment_id,
+        p.approved_by,
+        p.approved_at
       FROM workers w
-      LEFT JOIN attendance a ON a.worker_id = w.id
+      LEFT JOIN attendance a ON a.worker_id = w.id AND a.status = 'Present'
       LEFT JOIN payments p 
-        ON p.worker_id = w.id 
-        AND p.period_closed = FALSE
+        ON p.worker_id = w.id
+        AND p.period_closed = 0
       WHERE (w.site_id = ? OR w.site = ?)
-        AND (p.status IS NULL OR p.status != 'Approved')
+      GROUP BY w.id, w.full_name, w.role, w.phone, w.daily_pay, p.status, p.id, p.approved_by, p.approved_at
+      ORDER BY w.full_name ASC;
     `;
 
-    const params = [siteId, siteName];
+    db.query(sql, [siteId, siteName], (err2, results) => {
+      if (err2) return res.status(500).json({ msg: "DB error" });
 
-    if (start && end) {
-      sql += " AND a.date BETWEEN ? AND ?";
-      params.push(start, end);
-    }
+      // Split into two categories
+      const pending = results.filter(r => r.status === 'Pending');
+      const approved = results.filter(r => r.status === 'Approved');
 
-    sql += `
-      GROUP BY w.id, w.full_name, w.role, w.phone, w.daily_pay, p.status
-      ORDER BY w.full_name ASC
-    `;
-
-    db.query(sql, params, (err2, results) => {
-      if (err2) {
-        console.error("Get payments error:", err2);
-        return res.status(500).json({ msg: "DB error" });
-      }
-
-      // Default: everyone in this result is pending payment
-      const withStatus = results.map(r => ({
-        ...r,
-        status: r.status || "Pending",
-      }));
-
-      res.json(withStatus);
+      res.json({ pending, approved });
     });
   });
 };
 
 
+// ================== MARK PAYMENT ==================
 exports.markPayment = (req, res) => {
   const siteId = getSiteIdFromReqUser(req.user);
   if (!siteId) return res.status(400).json({ msg: "No site assigned" });
 
-  const workerId = req.body.worker_id; // we’ll pass this from frontend
+  const workerId = req.body.worker_id;
   const managerName = req.user?.name || "Manager";
 
   ensureSiteName(siteId, (err, siteName) => {
     if (err) return res.status(500).json({ msg: "DB error" });
 
-    // 1️⃣ Get attendance range and count
     const sql = `
-      SELECT 
-        MIN(a.date) AS period_start,
-        MAX(a.date) AS period_end,
-        COUNT(DISTINCT a.date) AS days_worked,
-        w.daily_pay,
-        (COUNT(DISTINCT a.date) * COALESCE(w.daily_pay, 0)) AS amount,
-        w.role,
-        w.site
+      SELECT MIN(a.date) AS period_start, MAX(a.date) AS period_end,
+             COUNT(DISTINCT a.date) AS days_worked, w.daily_pay, 
+             (COUNT(DISTINCT a.date)*w.daily_pay) AS amount,
+             w.role, w.site
       FROM attendance a
       JOIN workers w ON w.id = a.worker_id
-      WHERE a.worker_id = ? AND a.status = 'Present'
-      GROUP BY w.id;
+      WHERE a.worker_id = ? AND a.status = 'Present';
     `;
 
     db.query(sql, [workerId], (err2, rows) => {
-      if (err2) {
-        console.error("Attendance range error:", err2);
-        return res.status(500).json({ msg: "DB error" });
-      }
-
-      if (!rows.length)
-        return res.status(400).json({ msg: "No attendance records found" });
-
+      if (err2 || !rows.length) return res.status(500).json({ msg: "No attendance records found" });
       const r = rows[0];
 
-      // 2️⃣ Insert new payment record
       const insert = `
         INSERT INTO payments 
-        (worker_id, role, site, period_start, period_end, days_worked, amount, status, approved_by, approved_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'Approved', ?, NOW());
+        (worker_id, role, site, period_start, period_end, days_worked, amount, status, approved_by, approved_at, period_closed)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'Approved', ?, NOW(), 0);
       `;
 
-      db.query(
-        insert,
-        [
-          workerId,
-          r.role,
-          r.site,
-          r.period_start,
-          r.period_end,
-          r.days_worked,
-          r.amount,
-          managerName,
-        ],
-        (err3, result) => {
-          if (err3) {
-            console.error("Insert payment error:", err3);
-            return res.status(500).json({ msg: "DB error" });
-          }
+      db.query(insert, [workerId, r.role, r.site, r.period_start, r.period_end, r.days_worked, r.amount, managerName], (err3) => {
+        if (err3) return res.status(500).json({ msg: "DB insert error" });
 
-          // 3️⃣ Optionally clear attendance for new cycle
-          const clear = `DELETE FROM attendance WHERE worker_id = ?;`;
-          db.query(clear, [workerId], (err4) => {
-            if (err4) console.warn("Could not clear attendance:", err4);
-
-            res.json({
-              msg: "Payment approved and moved to reports",
-              payment_id: result.insertId,
-              worker_id: workerId,
-              period_start: r.period_start,
-              period_end: r.period_end,
-              days_worked: r.days_worked,
-              amount: r.amount,
-            });
-          });
-        }
-      );
+        db.query("DELETE FROM attendance WHERE worker_id = ?", [workerId], () => {
+          res.json({ msg: "Payment approved and moved to right side", ...r });
+        });
+      });
     });
   });
 };
 
-// ================== CLOSE PAYMENT PERIOD (AUTO RANGE) ==================
+
+// ================== CLOSE PAYMENT PERIOD ==================
 exports.closePaymentPeriod = (req, res) => {
   const siteId = getSiteIdFromReqUser(req.user);
-  const managerName = req.user?.name || "Manager";
-
   if (!siteId) return res.status(400).json({ msg: "No site assigned" });
 
   ensureSiteName(siteId, (err, siteName) => {
     if (err) return res.status(500).json({ msg: "DB error" });
 
-    // 1️⃣ Get auto period range from attendance
-    const periodSql = `
-      SELECT MIN(date) AS period_start, MAX(date) AS period_end
-      FROM attendance a
-      JOIN workers w ON w.id = a.worker_id
-      WHERE (w.site_id = ? OR w.site = ?);
+    const update = `
+      UPDATE payments p
+      JOIN workers w ON w.id = p.worker_id
+      SET p.period_closed = 1, p.closed_at = NOW()
+      WHERE (w.site_id = ? OR w.site = ?) AND p.period_closed = 0;
     `;
 
-    db.query(periodSql, [siteId, siteName], (err2, rows) => {
-      if (err2) {
-        console.error("Close period - get range error:", err2);
-        return res.status(500).json({ msg: "DB error getting period range" });
-      }
+    db.query(update, [siteId, siteName], (err2, result) => {
+      if (err2) return res.status(500).json({ msg: "DB error updating payments" });
+      res.json({ msg: `✅ ${result.affectedRows} payments moved to reports.` });
+    });
+  });
+};
 
-      const { period_start, period_end } = rows[0] || {};
-      if (!period_start || !period_end)
-        return res.status(400).json({ msg: "No attendance data found for this site" });
 
-      // 2️⃣ Mark all payments for this site as closed
-      const updateSql = `
-        UPDATE payments p
-        JOIN workers w ON w.id = p.worker_id
-        SET p.period_closed = 1,
-            p.closed_at = NOW()
-        WHERE (w.site_id = ? OR w.site = ?)
-          AND p.period_closed = 0;
-      `;
+// ================== CONFIRM PAYMENT (SEND SMS) ==================
+exports.confirmPayment = (req, res) => {
+  const { payment_id } = req.body;
+  if (!payment_id) return res.status(400).json({ msg: "payment_id is required" });
 
-      db.query(updateSql, [siteId, siteName], (err3, result) => {
-        if (err3) {
-          console.error("Close period - update error:", err3);
-          return res.status(500).json({ msg: "DB error updating payments" });
-        }
+  const siteId = getSiteIdFromReqUser(req.user);
+  if (!siteId) return res.status(400).json({ msg: "No site assigned" });
 
-        // 3️⃣ Respond success
-        res.json({
-          msg: `✅ Payment period closed successfully`,
-          period_start,
-          period_end,
-          total_closed: result.affectedRows,
-        });
-      });
+  const sql = `
+    SELECT p.*, w.full_name, w.phone, w.id AS worker_id
+    FROM payments p
+    JOIN workers w ON w.id = p.worker_id
+    WHERE p.id = ?;
+  `;
+
+  db.query(sql, [payment_id], async (err, rows) => {
+    if (err) return res.status(500).json({ msg: "DB error" });
+    if (!rows.length) return res.status(404).json({ msg: "Payment not found" });
+
+    const payment = rows[0];
+    if (!payment.worker_id) return res.status(400).json({ msg: "Worker not found" });
+
+    const { sendPaymentSMS } = require('../utils/smsService');
+   const workerInfo = {
+  id: payment.worker_id,
+  full_name: payment.full_name,
+  phone: payment.phone,
+};
+
+const smsResult = await sendPaymentSMS(
+  workerInfo,
+  payment.amount,
+  payment.period_start,
+  payment.period_end
+);
+
+
+    if (!smsResult.success)
+      return res.status(500).json({ msg: "Payment confirmed, but SMS failed: " + smsResult.message });
+
+    // Update payment status to "Approved" if not already
+    db.query(`UPDATE payments SET status='Approved', approved_at=NOW() WHERE id=?`, [payment.id], (err2) => {
+      if (err2) console.error('Failed to update payment status after SMS:', err2);
+      res.json({ msg: "✅ Payment confirmed and SMS sent successfully" });
     });
   });
 };

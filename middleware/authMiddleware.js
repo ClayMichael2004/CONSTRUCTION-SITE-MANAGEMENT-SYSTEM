@@ -1,25 +1,27 @@
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
 
-exports.protect = (roles = []) => {
+exports.protect = (allowedRoles = []) => {
   return (req, res, next) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ msg: "Not authorized, no token" });
+    }
+
+    const token = authHeader.split(" ")[1];
     try {
-      const authHeader = req.headers['authorization'];
-      if (!authHeader) return res.status(401).json({ msg: "No token, authorization denied" });
-
-      const token = authHeader.split(' ')[1];
-      if (!token) return res.status(401).json({ msg: "No token, authorization denied" });
-
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      // decoded includes id, role, site (from login token)
       req.user = decoded;
 
-      if (roles.length && !roles.includes(req.user.role)) {
-        return res.status(403).json({ msg: "Forbidden: Insufficient rights" });
+      // Check if role is allowed
+      if (allowedRoles.length && !allowedRoles.includes(decoded.role)) {
+        return res.status(403).json({ msg: "Access denied for your role" });
       }
 
       next();
     } catch (err) {
-      return res.status(401).json({ msg: "Invalid token" });
+      console.error("Auth error:", err);
+      res.status(401).json({ msg: "Invalid token" });
     }
   };
 };

@@ -12,6 +12,7 @@ router.get('/payments', protect(['manager']), managerController.getPayments);
 router.post('/payments/mark-paid', protect(['manager']), managerController.markPayment);
 router.put("/payments/close-period",protect(['manager']), managerController.closePaymentPeriod);
 router.get('/reports', protect(['manager']), managerController.getReports);
+router.post('/payments/confirm', protect(['manager']), managerController.confirmPayment);
 
 
 module.exports = router;

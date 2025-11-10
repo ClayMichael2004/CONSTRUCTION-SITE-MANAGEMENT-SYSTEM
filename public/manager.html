@@ -98,19 +98,19 @@
       </section>
 
       <section id="payments" class="section">
-        <h3>Payments</h3>
-        <div class="export-buttons">
-            <button onclick="exportApprovedToCSV()">Export CSV</button>
-            <button onclick="exportApprovedToPDF()">Export PDF</button>
-        </div>
-
-        <button id="closePeriodBtn" class="btn btn-danger">Close Payment Period</button>
-
-
-        <table id="paymentsTable">
-          <thead><tr><th>Worker</th><th>Role</th><th>Days</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead><tbody></tbody>
-        </table>
-      </section>
+  <h3>Payments</h3>
+  <div class="payments-container">
+    <div class="left-pane">
+      <h4>Pending Payments</h4>
+      <ul id="pendingList"></ul>
+    </div>
+    <div class="right-pane">
+      <h4>Approved Payments</h4>
+      <ul id="approvedList"></ul>
+      <button id="closePeriodBtn" class="btn btn-danger">Close Payment Period</button>
+    </div>
+  </div>
+</section>
 
       <section id="reports" class="section">
         <h3>Reports Summary</h3>

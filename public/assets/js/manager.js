@@ -104,46 +104,72 @@ async function loadInventory() {
 // === PAYMENTS ===
 async function loadPayments() {
   try {
-    const data = await getJson("http://localhost:5000/api/manager/payments");
-    console.log("📦 Payments data:", data);
-
-    const tbody = document.querySelector("#paymentsTable tbody");
-
-    tbody.innerHTML = data.map(p => `
-      <tr>
-        <td>${p.worker_name}</td>
-        <td>${p.role}</td>
-        <td>${p.days_worked ?? '-'}</td>
-        <td>${p.amount ?? '-'}</td>
-        <td class="status ${p.status?.toLowerCase() || ''}">${p.status ?? 'Pending'}</td>
-        <td>
-          ${
-            p.status === "Pending" || !p.payment_id
-              ? `<button class="btn mark-paid" data-worker="${p.worker_id}">Mark Paid</button>`
-              : "—"
-          }
-        </td>
-      </tr>
-    `).join("");
-
-    // === Attach Mark Paid listeners ===
-    tbody.querySelectorAll(".mark-paid").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const workerId = btn.getAttribute("data-worker");
-        console.log("🔍 Worker ID:", workerId);
-        markPaymentAsPaid(workerId, btn);
-      });
+    const res = await fetch("http://localhost:5000/api/manager/payments", {
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     });
 
-  } catch (e) {
-    console.error("Payments load error:", e);
+    if (!res.ok) throw new Error("Failed to load payments");
+
+    const { pending, approved } = await res.json();
+
+    const pendingList = document.getElementById("pendingList");
+    const approvedList = document.getElementById("approvedList");
+
+    // Render pending payments
+    pendingList.innerHTML = pending.map(p => `
+      <li>
+        ${p.worker_name} - ${p.role} (${p.days_worked} days, KES ${p.amount})
+        <button class="btn mark-paid" data-id="${p.worker_id}">Mark Paid</button>
+      </li>
+    `).join("");
+
+    // Render approved payments
+    approvedList.innerHTML = approved.map(p => `
+      <li>
+        ${p.worker_name} - ${p.role} (${p.days_worked} days, KES ${p.amount})
+        <button class="btn confirm" data-id="${p.payment_id}">Confirm (SMS)</button>
+      </li>
+    `).join("");
+
+    // Mark paid buttons
+    document.querySelectorAll(".mark-paid").forEach(b => {
+      b.onclick = () => markPaid(b.dataset.id);
+    });
+
+    // Confirm (SMS) buttons
+    document.querySelectorAll(".confirm").forEach(b => {
+      b.onclick = async () => {
+        const paymentId = b.dataset.id;
+        try {
+          const res = await fetch("http://localhost:5000/api/manager/payments/confirm", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
+            },
+            body: JSON.stringify({ payment_id: paymentId }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.msg || "Error confirming payment");
+          showToast(data.msg, "success");
+          loadPayments();
+        } catch (err) {
+          console.error(err);
+          showToast(err.message, "error");
+        }
+      };
+    });
+
+  } catch (err) {
+    console.error("Load payments error:", err);
+    showToast("Failed to load payments", "error");
   }
 }
 
-// === INDIVIDUAL MARK AS PAID (Attendance-based) ===
-async function markPaymentAsPaid(workerId, btn) {
+// === Mark Payment ===
+async function markPaid(workerId) {
   try {
-    const response = await fetch(`http://localhost:5000/api/manager/payments/mark-paid`, {
+    const res = await fetch("http://localhost:5000/api/manager/payments/mark-paid", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -151,57 +177,33 @@ async function markPaymentAsPaid(workerId, btn) {
       },
       body: JSON.stringify({ worker_id: workerId }),
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      showToast(`❌ ${data.msg || "Mark paid failed"}`, "error");
-      return;
-    }
-
-    showToast(`✅ ${data.msg} (${data.period_start} → ${data.period_end})`, "success");
-
-    // Refresh both Payments and Reports
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.msg || "Error marking payment");
+    showToast(data.msg, "success");
     loadPayments();
-    loadReports();
-
   } catch (err) {
-    console.error("Mark paid error:", err);
-    showToast("❌ Network error marking payment", "error");
+    console.error(err);
+    showToast(err.message, "error");
   }
 }
 
-document.getElementById("closePeriodBtn").addEventListener("click", async () => {
-  if (!confirm("Are you sure you want to close the current payment period?")) return;
-
+// === Close Payment Period ===
+document.getElementById("closePeriodBtn").onclick = async () => {
+  if (!confirm("Close current period?")) return;
   try {
-    const response = await fetch(`http://localhost:5000/api/manager/payments/close-period`, {
+    const res = await fetch("http://localhost:5000/api/manager/payments/close-period", {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      }
+      headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      showToast(`❌ ${data.msg || "Failed to close period"}`, "error");
-      return;
-    }
-
-    showToast(`✅ ${data.msg} (${data.period_start} → ${data.period_end})`, "success");
-
-    // Refresh both tables
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.msg || "Error closing period");
+    showToast(data.msg, "success");
     loadPayments();
-    loadReports();
-
   } catch (err) {
-    console.error("Close period error:", err);
-    showToast("❌ Server error while closing period", "error");
+    console.error(err);
+    showToast(err.message, "error");
   }
-});
-
+};
 
 // === Simple Toast Notification ===
 function showToast(message, type = "info") {
