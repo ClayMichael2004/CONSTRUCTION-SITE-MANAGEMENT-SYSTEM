@@ -246,14 +246,48 @@ document.getElementById('inventoryForm').addEventListener('submit', async (e) =>
 });
 
 window.promptUpdateInventory = async (id) => {
-  const q = prompt("Enter new quantity:");
-  if (q == null) return;
-  const taken_by = prompt("Enter name of person taking the item:");
-  if (taken_by == null) return;
-  const { ok, body } = await fetchAuth(`${API}/inventory/${id}`, { method: 'PUT', body: JSON.stringify({ quantity: q, taken_by }) });
-  if (!ok) return alert(body.error || body.msg || "Failed");
+  const action = prompt("Type 'TAKEN' to reduce or 'ADDED' to increase:");
+  if (!action || !['TAKEN', 'ADDED'].includes(action.toUpperCase())) return;
+
+  const qty = parseInt(prompt("Enter quantity change:"), 10);
+  if (isNaN(qty)) return alert("Invalid quantity");
+
+  let taken_by = null;
+  if (action.toUpperCase() === 'TAKEN') {
+    taken_by = prompt("Enter person taking the item:");
+    if (!taken_by) return;
+  }
+
+  const { ok, body } = await fetchAuth(`${API}/inventory/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify({ quantity_change: qty, taken_by, action: action.toUpperCase() }),
+  });
+
+  if (!ok) return alert(body.error || "Failed to update inventory");
+  alert(body.message);
   loadInventory();
+  loadInventoryHistory(id);
 };
+
+// for viewing the inventiory history
+async function loadInventoryHistory() {
+  const { ok, body } = await fetchAuth(`${API}/history`);
+  if (!ok) return console.error('Failed to load history');
+  const tbody = document.querySelector('#inventoryHistoryTable tbody');
+  tbody.innerHTML = '';
+  body.forEach(r => {
+    tbody.innerHTML += `
+      <tr>
+        <td>${r.item_name}</td>
+        <td>${r.action}</td>
+        <td>${r.quantity}</td>
+        <td>${r.taken_by || '-'}</td>
+        <td>${new Date(r.date).toLocaleString()}</td>
+      </tr>`;
+  });
+}
+
+
 
 /* ---------------- PAYMENTS ---------------- */
 async function loadPayments(period = "weekly") {

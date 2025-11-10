@@ -303,66 +303,59 @@ exports.addInventory = (req, res) => {
 
 exports.updateInventory = (req, res) => {
   const { id } = req.params;
-  const { quantity, taken_by } = req.body;
+  const { quantity_change, taken_by, action } = req.body; // action = 'TAKEN' or 'ADDED'
   const role = req.user?.role;
 
-  if (quantity == null) return res.status(400).json({ error: "Quantity required" });
+  if (!quantity_change || isNaN(quantity_change)) 
+    return res.status(400).json({ error: "Quantity change is required" });
 
-  // helper to check if taken_by column exists (safe if schema differs)
-  function checkTakenByColumn(cb) {
-    req.db.query(
-      "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'inventory' AND COLUMN_NAME = 'taken_by'",
-      (err, rows) => {
-        if (err) return cb(err);
-        cb(null, rows && rows[0] && rows[0].c > 0);
-      }
-    );
-  }
+  // Get current quantity first
+  req.db.query("SELECT quantity, site FROM inventory WHERE id=?", [id], (err, results) => {
+    if (err) return res.status(500).json({ error: err.sqlMessage || "DB error" });
+    if (results.length === 0) return res.status(404).json({ error: "Item not found" });
 
-  if (role === "secretary") {
-    getSiteNameFromUser(req, (err, siteName) => {
-      if (err) return res.status(500).json({ error: err.sqlMessage || "DB error" });
-      if (!siteName) return res.status(400).json({ error: "Secretary has no site assigned" });
+    const current = results[0];
+    let newQty;
 
-      checkTakenByColumn((err2, hasTakenBy) => {
-        if (err2) return res.status(500).json({ error: err2.sqlMessage || "DB error" });
+    if (action === 'TAKEN') {
+      newQty = current.quantity - quantity_change;
+      if (newQty < 0) newQty = 0;
+    } else if (action === 'ADDED') {
+      newQty = current.quantity + quantity_change;
+    } else {
+      return res.status(400).json({ error: "Invalid action" });
+    }
 
-        if (hasTakenBy && taken_by != null) {
-          req.db.query("UPDATE inventory SET quantity=?, taken_by=? WHERE id=? AND site=?", [quantity, taken_by, id, siteName], (err, result) => {
-            if (err) return res.status(500).json({ error: err.sqlMessage || "DB error" });
-            if (result.affectedRows === 0) return res.status(404).json({ error: "Item not found or unauthorized" });
-            res.json({ message: "Inventory updated" });
-          });
-        } else {
-          req.db.query("UPDATE inventory SET quantity=? WHERE id=? AND site=?", [quantity, id, siteName], (err, result) => {
-            if (err) return res.status(500).json({ error: err.sqlMessage || "DB error" });
-            if (result.affectedRows === 0) return res.status(404).json({ error: "Item not found or unauthorized" });
-            res.json({ message: "Inventory updated" });
-          });
-        }
-      });
-    });
-  } else {
-    // admin/manager branch
-    checkTakenByColumn((err2, hasTakenBy) => {
+    // Update inventory
+    req.db.query("UPDATE inventory SET quantity=? WHERE id=?", [newQty, id], (err2) => {
       if (err2) return res.status(500).json({ error: err2.sqlMessage || "DB error" });
 
-      if (hasTakenBy && taken_by != null) {
-        req.db.query("UPDATE inventory SET quantity=?, taken_by=? WHERE id=?", [quantity, taken_by, id], (err, result) => {
-          if (err) return res.status(500).json({ error: err.sqlMessage || "DB error" });
-          if (result.affectedRows === 0) return res.status(404).json({ error: "Item not found" });
-          res.json({ message: "Inventory updated" });
-        });
-      } else {
-        req.db.query("UPDATE inventory SET quantity=? WHERE id=?", [quantity, id], (err, result) => {
-          if (err) return res.status(500).json({ error: err.sqlMessage || "DB error" });
-          if (result.affectedRows === 0) return res.status(404).json({ error: "Item not found" });
-          res.json({ message: "Inventory updated" });
-        });
-      }
+      // Record the transaction
+      req.db.query(
+        "INSERT INTO inventory_history (inventory_id, action, quantity, taken_by) VALUES (?,?,?,?)",
+        [id, action, quantity_change, taken_by || null],
+        (err3) => {
+          if (err3) return res.status(500).json({ error: err3.sqlMessage || "DB error" });
+          res.json({ message: `Inventory ${action === 'TAKEN' ? 'reduced' : 'increased'} successfully`, newQty });
+        }
+      );
     });
-  }
+  });
 };
+
+//get inventory updates/history
+exports.getInventoryHistory = (req, res) => {
+  req.db.query(`
+    SELECT h.*, i.item_name 
+    FROM inventory_history h
+    JOIN inventory i ON i.id = h.inventory_id
+    ORDER BY h.date DESC
+  `, (err, results) => {
+    if (err) return res.status(500).json({ error: err.sqlMessage || "DB error" });
+    res.json(results);
+  });
+};
+
 
 // ---------------- PAYMENTS ----------------
 exports.getPayments = (req, res) => {

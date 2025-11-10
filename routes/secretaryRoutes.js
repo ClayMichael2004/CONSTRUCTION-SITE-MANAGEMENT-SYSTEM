@@ -16,5 +16,5 @@ router.post('/workers', protect(['secretary']), secretaryController.registerWork
 router.post('/attendance', protect(['secretary']), secretaryController.markAttendance);
 router.post('/inventory', protect(['secretary']), secretaryController.addInventory);
 router.put('/inventory/:id', protect(['secretary']), secretaryController.updateInventory);
-
+router.get('/history',protect(['secretary']), secretaryController.getInventoryHistory);
 module.exports = router;
