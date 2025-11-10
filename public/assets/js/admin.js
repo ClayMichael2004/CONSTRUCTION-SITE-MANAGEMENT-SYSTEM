@@ -1,5 +1,5 @@
-const role = localStorage.getItem("role");
-const token = localStorage.getItem("token");
+const role = sessionStorage.getItem("role");
+const token = sessionStorage.getItem("token");
 
 if (role !== "admin") {
   alert("Unauthorized access. Redirecting...");
@@ -7,7 +7,7 @@ if (role !== "admin") {
 }
 
 function logout() {
-  localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "login.html";
 }
 

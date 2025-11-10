@@ -1,14 +1,34 @@
 // assets/js/secretary.js
 const API = "/api/secretary";
 const ROLES_API = "/api/roles";
-const token = localStorage.getItem('token') || '';
-const role = localStorage.getItem('role') || '';
-let userSiteId = localStorage.getItem('siteId') || localStorage.getItem('site') || '';
-let userSiteName = localStorage.getItem('siteName') || '';
+const token = sessionStorage.getItem('token') || '';
+const role = sessionStorage.getItem('role') || '';
+let userSiteId = sessionStorage.getItem('siteId') || localStorage.getItem('site') || '';
+let userSiteName = sessionStorage.getItem('siteName') || '';
 
-if (!token) {
+if (!token ||  role!=="secretary") {
   window.location.href = '/login.html';
 }
+
+
+// ✅ Optional backend verification
+async function verifySecretary() {
+  try {
+    const res = await fetch("/api/auth/me", {
+      headers: { Authorization: "Bearer " + token }
+    });
+    const data = await res.json();
+    if (!res.ok || data.role !== "secretary") {
+      alert("Access denied — invalid session.");
+      window.location.href = "login.html";
+    }
+  } catch (err) {
+    console.error("Verification error:", err);
+    window.location.href = "login.html";
+  }
+}
+
+verifySecretary();
 
 function decodeJwtPayload(t) {
   try {
@@ -24,7 +44,7 @@ if (!userSiteId && token) {
   const payload = decodeJwtPayload(token);
   if (payload) {
     userSiteId = payload.siteId || payload.site_id || payload.site || '';
-    if (userSiteId) localStorage.setItem('siteId', userSiteId);
+    if (userSiteId) sessionStorage.setItem('siteId', userSiteId);
   }
 }
 
@@ -39,15 +59,15 @@ async function resolveSiteNameIfNeeded() {
     const res = await fetch('/api/sites', { headers: authHeaders() });
     if (!res.ok) {
       userSiteName = String(userSiteId);
-      localStorage.setItem('siteName', userSiteName);
+      sessionStorage.setItem('siteName', userSiteName);
       return userSiteName;
     }
     const sites = await res.json();
     const found = sites.find(s => String(s.id) === String(userSiteId));
-    if (found) { userSiteName = found.name; localStorage.setItem('siteName', userSiteName); return userSiteName; }
-    userSiteName = String(userSiteId); localStorage.setItem('siteName', userSiteName); return userSiteName;
+    if (found) { userSiteName = found.name; sessionStorage.setItem('siteName', userSiteName); return userSiteName; }
+    userSiteName = String(userSiteId); sessionStorage.setItem('siteName', userSiteName); return userSiteName;
   } catch (err) {
-    userSiteName = String(userSiteId); localStorage.setItem('siteName', userSiteName); return userSiteName;
+    userSiteName = String(userSiteId); sessionStorage.setItem('siteName', userSiteName); return userSiteName;
   }
 }
 

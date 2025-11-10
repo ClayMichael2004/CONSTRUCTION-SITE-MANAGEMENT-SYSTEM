@@ -81,35 +81,32 @@ form.addEventListener('submit', async (e) => {
       messageDiv.className = "message error";
       return;
     }
-    // save token, role, name
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("role", data.role);
-    localStorage.setItem("name", data.name || "");
-    // store siteId if server returned it (preferred)
-    if (data.siteId) {
-      localStorage.setItem("siteId", data.siteId);
-      // optionally store site name too if server provided (data.siteName)
-      if (data.siteName) localStorage.setItem("siteName", data.siteName);
-    } else {
-      // fallback: decode token payload to find siteId
+
+    // ✅ Save everything in sessionStorage
+    sessionStorage.setItem("token", data.token);
+    sessionStorage.setItem("role", data.role);
+    sessionStorage.setItem("name", data.name || "");
+    sessionStorage.setItem("siteId", data.siteId || "");
+    sessionStorage.setItem("siteName", data.siteName || "");
+
+    // fallback: decode token if siteId not provided
+    if (!data.siteId) {
       const payload = decodeJwtPayload(data.token);
       if (payload) {
-        const sid = payload.siteId || payload.site_id || payload.site;
-        if (sid) localStorage.setItem("siteId", sid);
+        sessionStorage.setItem("siteId", payload.siteId || payload.site_id || payload.site || "");
       }
     }
 
     // build a complete user object for dashboard pages
-const userObj = {
-  id: data.id || null,
-  name: data.name || "",
-  email: data.email || email,
-  role: data.role || "",
-  siteId: data.siteId || null,
-  siteName: data.siteName || null
-};
-localStorage.setItem("user", JSON.stringify(userObj));
-
+    const userObj = {
+      id: data.id || null,
+      name: data.name || "",
+      email: data.email || email,
+      role: data.role || "",
+      siteId: data.siteId || null,
+      siteName: data.siteName || null
+    };
+    sessionStorage.setItem("user", JSON.stringify(userObj));
 
     messageDiv.textContent = "Login successful! Redirecting...";
     messageDiv.className = "message success";
@@ -120,6 +117,7 @@ localStorage.setItem("user", JSON.stringify(userObj));
       else if (data.role === "manager") window.location.href = "manager.html";
       else window.location.href = "/";
     }, 700);
+
   } catch (err) {
     messageDiv.textContent = "Server error, please try again.";
     messageDiv.className = "message error";

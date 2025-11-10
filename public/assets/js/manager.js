@@ -1,15 +1,38 @@
 console.log("✅ manager.js loaded");
 
 // ======== AUTH CHECK ========
-const token = localStorage.getItem("token");
-const user = JSON.parse(localStorage.getItem("user"));
+const token = sessionStorage.getItem("token");
+const user = JSON.parse(sessionStorage.getItem("user"));
 
-if (!token || !user) {
+if (!token || !user ||user.role !=="manager") {
   console.warn("No token or user found — redirecting to login.");
   window.location.href = "login.html";
 }
 
+// Role mismatch guard
+if (user.role !== "manager") {
+  alert("Unauthorized access. Redirecting...");
+  window.location.href = "login.html";
+}
+
 const headers = { Authorization: "Bearer " + token };
+
+// ✅ Optional backend verification
+async function verifyManager() {
+  try {
+    const res = await fetch("/api/auth/me", { headers });
+    const data = await res.json();
+    if (!res.ok || data.role !== "manager") {
+      alert("Access denied — invalid session.");
+      window.location.href = "login.html";
+    }
+  } catch (err) {
+    console.error("Verification error:", err);
+    window.location.href = "login.html";
+  }
+}
+
+verifyManager();
 
 // ======== UI SETUP ========
 document.getElementById("managerName").textContent = user.name || "Manager";
