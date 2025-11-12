@@ -70,7 +70,7 @@
   </div>
 
   <script>
-    const token = localStorage.getItem("token");
+    const token = sessionStorage.getItem("token");
     const messageDiv = document.getElementById("message");
     const roleForm = document.getElementById("roleForm");
     const roleNameInput = document.getElementById("roleName");
@@ -78,7 +78,7 @@
     const rolesTableBody = document.querySelector("#rolesTable tbody");
 
     // Redirect if not admin
-    if (localStorage.getItem("role") !== "admin") {
+    if (sessionStorage.getItem("role") !== "admin") {
       alert("Unauthorized access");
       window.location.href = "login.html";
     }

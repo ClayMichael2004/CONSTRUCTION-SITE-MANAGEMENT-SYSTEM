@@ -347,6 +347,33 @@ exports.getInventory = (req, res) => {
   });
 };
 
+// ---------------- INVENTORY HISTORY ----------------
+exports.getInventoryHistory = (req, res) => {
+  const siteId = getSiteIdFromReqUser(req.user);
+  if (!siteId) return res.status(400).json({ msg: "No site assigned" });
+
+  ensureSiteName(siteId, (err, siteName) => {
+    if (err) return res.status(500).json({ msg: "DB error" });
+
+    const sql = `
+      SELECT ih.id, i.item_name, ih.action, ih.quantity, ih.taken_by, ih.date
+      FROM inventory_history ih
+      JOIN inventory i ON ih.inventory_id = i.id
+      WHERE i.site_id = ? OR i.site = ?
+      ORDER BY ih.date DESC
+    `;
+
+    db.query(sql, [siteId, siteName], (err2, rows) => {
+      if (err2) {
+        console.error("Inventory history error:", err2);
+        return res.status(500).json({ msg: "DB error" });
+      }
+      res.json(rows || []);
+    });
+  });
+};
+
+
 // ---------------- REPORTS ----------------
 exports.getReports = (req, res) => {
   const siteId = getSiteIdFromReqUser(req.user);

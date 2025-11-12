@@ -8,6 +8,7 @@ router.get('/dashboard', protect(['manager']), managerController.getDashboard);
 router.get('/workers', protect(['manager']), managerController.getWorkers);
 router.get('/attendance', protect(['manager']), managerController.getAttendance);
 router.get('/inventory', protect(['manager']), managerController.getInventory);
+router.get('/inventory/history', protect(['manager']), managerController.getInventoryHistory);
 router.get('/payments', protect(['manager']), managerController.getPayments);
 router.post('/payments/mark-paid', protect(['manager']), managerController.markPayment);
 router.put("/payments/close-period",protect(['manager']), managerController.closePaymentPeriod);

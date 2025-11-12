@@ -83,7 +83,7 @@
   const roleSelect = document.getElementById('role');
   const siteGroup = document.getElementById('siteGroup');
   const siteSelect = document.getElementById('site');
-  const token = localStorage.getItem("token");
+  const token = sessionStorage.getItem("token");
 
   // Show/hide site dropdown if secretary is selected
   roleSelect.addEventListener('change', () => {

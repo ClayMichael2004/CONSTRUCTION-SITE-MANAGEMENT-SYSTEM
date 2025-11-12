@@ -1,6 +1,6 @@
 // assets/js/reports.js
-const token = localStorage.getItem("token");
-const role = localStorage.getItem("role");
+const token = sessionStorage.getItem("token");
+const role = sessionStorage.getItem("role");
 
 if (!token || role !== "admin") {
   alert("Unauthorized access");
@@ -8,7 +8,7 @@ if (!token || role !== "admin") {
 }
 
 function logout() {
-  localStorage.clear();
+  sessionStorage.clear();
   window.location.href = "login.html";
 }
 

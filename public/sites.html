@@ -55,14 +55,14 @@
   </div>
 
   <script>
-    const token = localStorage.getItem("token");
+    const token = sessionStorage.getItem("token");
     const messageDiv = document.getElementById("message");
     const siteForm = document.getElementById("siteForm");
     const siteNameInput = document.getElementById("siteName");
     const sitesTableBody = document.querySelector("#sitesTable tbody");
 
     // Redirect if not admin
-    if (localStorage.getItem("role") !== "admin") {
+    if (sessionStorage.getItem("role") !== "admin") {
       alert("Unauthorized access");
       window.location.href = "login.html";
     }

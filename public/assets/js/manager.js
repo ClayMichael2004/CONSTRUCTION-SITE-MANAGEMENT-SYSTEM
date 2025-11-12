@@ -112,18 +112,46 @@ async function loadAttendance(date = "") {
 }
 
 
-// INVENTORY
+// ---------------- INVENTORY ----------------
 async function loadInventory() {
   try {
     const data = await getJson("http://localhost:5000/api/manager/inventory");
     const tbody = document.querySelector("#inventoryTable tbody");
     tbody.innerHTML = data.map(
-      i => `<tr><td>${i.item_name}</td><td>${i.quantity}</td><td>${i.taken_by || "—"}</td><td>${i.site || "—"}</td><td>${new Date(i.updated_at).toLocaleString()}</td></tr>`
+      i => `
+        <tr>
+          <td>${i.item_name}</td>
+          <td>${i.quantity}</td>
+          <td>${new Date(i.updated_at).toLocaleString()}</td>
+        </tr>
+      `
     ).join("");
   } catch (e) {
     console.error("Inventory load error:", e);
   }
 }
+
+// ---------------- INVENTORY HISTORY ----------------
+async function loadInventoryHistory() {
+  try {
+    const data = await getJson("http://localhost:5000/api/manager/inventory/history");
+    const tbody = document.querySelector("#inventoryHistoryTable tbody");
+    tbody.innerHTML = data.map(
+      r => `
+        <tr>
+          <td>${r.item_name}</td>
+          <td>${r.action}</td>
+          <td>${r.quantity}</td>
+          <td>${r.taken_by || '-'}</td>
+          <td>${new Date(r.date).toLocaleString()}</td>
+        </tr>
+      `
+    ).join("");
+  } catch (e) {
+    console.error("Inventory history load error:", e);
+  }
+}
+
 // === PAYMENTS ===
 async function loadPayments() {
   try {
@@ -394,7 +422,7 @@ navs.forEach(link => {
       case "dashboard": loadDashboard(); break;
       case "workers": loadWorkers(); break;
       case "attendance": loadAttendance(); break;
-      case "inventory": loadInventory(); break;
+      case "inventory": loadInventory(); loadInventoryHistory(); break;
       case "payments": loadPayments(); break;
       case "reports": loadReports(); break;
     }
